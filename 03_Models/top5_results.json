@@ -1,0 +1,66 @@
+[
+  {
+    "ticker": "HPG.VN",
+    "n_windows": 1370,
+    "n_test": 274,
+    "range": [
+      "2021-02-26",
+      "2026-07-09"
+    ],
+    "epochs": 20,
+    "window": 30,
+    "multimodal_da": 0.4176,
+    "multimodal_rmse": 1133,
+    "lstm_da": 0.3993,
+    "lstm_rmse": 460,
+    "note": "sentiment trung lap (0.0) - khong co nguon tin tu luc theo ma"
+  },
+  {
+    "ticker": "MBB.VN",
+    "n_windows": 1370,
+    "n_test": 274,
+    "range": [
+      "2021-02-26",
+      "2026-07-09"
+    ],
+    "epochs": 20,
+    "window": 30,
+    "multimodal_da": 0.4029,
+    "multimodal_rmse": 6000,
+    "lstm_da": 0.4249,
+    "lstm_rmse": 4370,
+    "note": "sentiment trung lap (0.0) - khong co nguon tin tu luc theo ma"
+  },
+  {
+    "ticker": "MWG.VN",
+    "n_windows": 1370,
+    "n_test": 274,
+    "range": [
+      "2021-02-26",
+      "2026-07-09"
+    ],
+    "epochs": 20,
+    "window": 30,
+    "multimodal_da": 0.4432,
+    "multimodal_rmse": 9763,
+    "lstm_da": 0.3883,
+    "lstm_rmse": 6889,
+    "note": "sentiment trung lap (0.0) - khong co nguon tin tu luc theo ma"
+  },
+  {
+    "ticker": "VNM.VN",
+    "n_windows": 1370,
+    "n_test": 274,
+    "range": [
+      "2021-02-26",
+      "2026-07-09"
+    ],
+    "epochs": 20,
+    "window": 30,
+    "multimodal_da": 0.3663,
+    "multimodal_rmse": 2781,
+    "lstm_da": 0.37,
+    "lstm_rmse": 1154,
+    "note": "sentiment trung lap (0.0) - khong co nguon tin tu luc theo ma"
+  }
+]

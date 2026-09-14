@@ -1,0 +1,70 @@
+{
+  "classification": {
+    "random_forest": {
+      "accuracy": 0.3396,
+      "f1": 0.2642,
+      "precision": 0.3812,
+      "recall": 0.3537,
+      "n_classes": 3,
+      "confusion_matrix": [
+        [
+          5,
+          19,
+          98
+        ],
+        [
+          3,
+          11,
+          37
+        ],
+        [
+          1,
+          17,
+          74
+        ]
+      ],
+      "classification_report": "              precision    recall  f1-score   support\n\n          -1       0.56      0.04      0.08       122\n           0       0.23      0.22      0.22        51\n           1       0.35      0.80      0.49        92\n\n    accuracy                           0.34       265\n   macro avg       0.38      0.35      0.26       265\nweighted avg       0.42      0.34      0.25       265\n"
+    },
+    "svm": {
+      "accuracy": 0.3396,
+      "f1": 0.2646,
+      "precision": 0.3343,
+      "recall": 0.3414,
+      "n_classes": 3,
+      "confusion_matrix": [
+        [
+          9,
+          20,
+          93
+        ],
+        [
+          5,
+          8,
+          38
+        ],
+        [
+          6,
+          13,
+          73
+        ]
+      ],
+      "classification_report": "              precision    recall  f1-score   support\n\n          -1       0.45      0.07      0.13       122\n           0       0.20      0.16      0.17        51\n           1       0.36      0.79      0.49        92\n\n    accuracy                           0.34       265\n   macro avg       0.33      0.34      0.26       265\nweighted avg       0.37      0.34      0.26       265\n"
+    }
+  },
+  "multimodal_deep_learning": {
+    "rmse": 6071.26,
+    "mae": 4758.94,
+    "mape": 5.39,
+    "direction_accuracy": 0.5426,
+    "accuracy_cls": 0.4324,
+    "macro_f1_cls": 0.2013,
+    "backtest": {
+      "cumulative_return_pct": 0.0,
+      "buy_and_hold_return_pct": -27.55,
+      "sharpe_ratio": 0.0,
+      "max_drawdown_pct": 0.0,
+      "win_rate_pct": 0.0,
+      "total_trades": 0
+    }
+  }
+}

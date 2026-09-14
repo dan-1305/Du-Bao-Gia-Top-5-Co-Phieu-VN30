@@ -1,0 +1,16 @@
+{
+  "ticker": "MWG.VN",
+  "n_windows": 1370,
+  "n_test": 274,
+  "range": [
+    "2021-02-26",
+    "2026-07-09"
+  ],
+  "epochs": 20,
+  "window": 30,
+  "multimodal_da": 0.4432,
+  "multimodal_rmse": 9763,
+  "lstm_da": 0.3883,
+  "lstm_rmse": 6889,
+  "note": "sentiment trung lap (0.0) - khong co nguon tin tu luc theo ma"
+}

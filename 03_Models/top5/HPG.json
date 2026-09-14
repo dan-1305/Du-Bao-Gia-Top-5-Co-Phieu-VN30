@@ -1,0 +1,16 @@
+{
+  "ticker": "HPG.VN",
+  "n_windows": 1370,
+  "n_test": 274,
+  "range": [
+    "2021-02-26",
+    "2026-07-09"
+  ],
+  "epochs": 20,
+  "window": 30,
+  "multimodal_da": 0.4176,
+  "multimodal_rmse": 1133,
+  "lstm_da": 0.3993,
+  "lstm_rmse": 460,
+  "note": "sentiment trung lap (0.0) - khong co nguon tin tu luc theo ma"
+}

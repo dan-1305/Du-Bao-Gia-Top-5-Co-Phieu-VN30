@@ -1,0 +1,21 @@
+[
+  "open",
+  "high",
+  "low",
+  "close",
+  "volume",
+  "RSI_14",
+  "MACD_12_26_9",
+  "MACDh_12_26_9",
+  "MACDs_12_26_9",
+  "BBL_5_2.0_2.0",
+  "BBM_5_2.0_2.0",
+  "BBU_5_2.0_2.0",
+  "BBB_5_2.0_2.0",
+  "BBP_5_2.0_2.0",
+  "sentiment_score",
+  "log_ret",
+  "price_change",
+  "sma_10",
+  "sma_20"
+]

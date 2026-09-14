@@ -1,0 +1,25 @@
+{
+  "note": "Backtest chay bang tin hieu du bao THAT cua model Multimodal (price head) tren test window FPT, dung cu phap BacktestEngine (phi 0.15%, thue 0.10%, slippage 0.05%, SL -7%, TP +14%, sizing 20% NAV)",
+  "test_rows": 259,
+  "test_range": [
+    "2025-06-26",
+    "2026-07-09"
+  ],
+  "strategy_threshold_docx": "MUA khi r_pred > +1.0% (+ dong thuan sentiment > 0); BAN khi r_pred < -1.0% hoac sentiment < -0.3",
+  "variant_price_only_threshold": {
+    "cumulative_return_pct": -4.15,
+    "buy_and_hold_return_pct": -27.55,
+    "sharpe_ratio": -0.7669044291455831,
+    "max_drawdown_pct": -8.45,
+    "win_rate_pct": 46.15,
+    "total_trades": 13
+  },
+  "variant_full_consensus": {
+    "cumulative_return_pct": -4.54,
+    "buy_and_hold_return_pct": -27.55,
+    "sharpe_ratio": -0.9430633522291486,
+    "max_drawdown_pct": -7.85,
+    "win_rate_pct": 50.0,
+    "total_trades": 10
+  }
+}

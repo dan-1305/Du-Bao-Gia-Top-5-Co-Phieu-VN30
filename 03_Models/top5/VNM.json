@@ -1,0 +1,16 @@
+{
+  "ticker": "VNM.VN",
+  "n_windows": 1370,
+  "n_test": 274,
+  "range": [
+    "2021-02-26",
+    "2026-07-09"
+  ],
+  "epochs": 20,
+  "window": 30,
+  "multimodal_da": 0.3663,
+  "multimodal_rmse": 2781,
+  "lstm_da": 0.37,
+  "lstm_rmse": 1154,
+  "note": "sentiment trung lap (0.0) - khong co nguon tin tu luc theo ma"
+}

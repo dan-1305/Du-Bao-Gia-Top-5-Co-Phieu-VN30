@@ -1,0 +1,7 @@
+{
+  "n_features": 19,
+  "sequence_length": 30,
+  "nlp_dim": 3,
+  "hidden_lstm": 32,
+  "hidden_dense": 24
+}

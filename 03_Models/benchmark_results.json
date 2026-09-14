@@ -1,0 +1,42 @@
+{
+  "sentiment_pearson_r": 0.0003,
+  "arima": {
+    "rmse": 1747.0,
+    "mae": 1325.0,
+    "mape": 1.48,
+    "da": 0.5417,
+    "n_test": 264
+  },
+  "lstm_unimodal": {
+    "rmse": 5186.0,
+    "mae": 4226.0,
+    "mape": 5.11,
+    "da": 0.4286
+  },
+  "random_forest": {
+    "accuracy": 0.317,
+    "f1": 0.2712,
+    "da": 0.3208
+  },
+  "svm": {
+    "accuracy": 0.2981,
+    "f1": 0.255,
+    "da": 0.3245
+  },
+  "multimodal": {
+    "rmse": 6071.26,
+    "mae": 4758.94,
+    "mape": 5.39,
+    "da": 0.5426,
+    "f1_cls": 0.2013,
+    "acc_cls": 0.4324
+  },
+  "backtest_rf": {
+    "roi": 63.84,
+    "buyhold": 114.49,
+    "sharpe": 2.36,
+    "maxdd": -10.98,
+    "winrate": 78.17,
+    "trades": 197
+  }
+}
