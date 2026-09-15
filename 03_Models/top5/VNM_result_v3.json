@@ -1,0 +1,15 @@
+{
+  "ticker": "VNM",
+  "da_news": 0.4099,
+  "da_neutral": 0.4134,
+  "delta_pp": -0.35,
+  "sent_days_cov": 8,
+  "n_rows": 1468,
+  "n_test": 284,
+  "rmse_news": 2714,
+  "range": [
+    "2021-02-01",
+    "2026-09-16"
+  ],
+  "note": "cung range + cung seed 42, chi khac sentiment news that (Google News RSS + Lexicon 38)"
+}

@@ -1,0 +1,15 @@
+{
+  "ticker": "MBB",
+  "da_news": 0.4346,
+  "da_neutral": 0.4205,
+  "delta_pp": 1.41,
+  "sent_days_cov": 9,
+  "n_rows": 1468,
+  "n_test": 284,
+  "rmse_news": 5093,
+  "range": [
+    "2021-02-01",
+    "2026-09-16"
+  ],
+  "note": "cung range + cung seed 42, chi khac sentiment news that (Google News RSS + Lexicon 38)"
+}

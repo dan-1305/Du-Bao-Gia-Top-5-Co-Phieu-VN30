@@ -1,0 +1,16 @@
+{
+  "ticker": "HPG",
+  "n_windows": 1370,
+  "n_test": 274,
+  "sent_days_cov": 4,
+  "da_v2_news": 0.4542,
+  "da_v1_neutral": 0.4176,
+  "delta_pp": 3.66,
+  "rmse": 944,
+  "epochs": 20,
+  "window": 30,
+  "range": [
+    "2021-02-26",
+    "2026-07-09"
+  ]
+}

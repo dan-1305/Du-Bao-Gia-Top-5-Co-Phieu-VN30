@@ -1,0 +1,16 @@
+{
+  "ticker": "VNM",
+  "n_windows": 1370,
+  "n_test": 274,
+  "sent_days_cov": 5,
+  "da_v2_news": 0.3663,
+  "da_v1_neutral": 0.3663,
+  "delta_pp": 0.0,
+  "rmse": 2594,
+  "epochs": 20,
+  "window": 30,
+  "range": [
+    "2021-02-26",
+    "2026-07-09"
+  ]
+}

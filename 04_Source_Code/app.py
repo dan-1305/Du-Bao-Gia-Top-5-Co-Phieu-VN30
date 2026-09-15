@@ -94,16 +94,17 @@ def predict_trend_rf(df):
     return trend, float(proba[idx])
 
 
-def predict_price_lstm(df, n_days=5):
-    """Dự báo đệ quy giá n ngày tiếp theo bằng mô hình PyTorch Multimodal."""
-    if "multimodal" not in MODELS or "lstm_scaler" not in MODELS or "lstm_y_scaler" not in MODELS:
+def predict_price_lstm(df, n_days=5, mdl=None):
+    """Dự báo đệ quy giá n ngày tiếp theo bằng mô hình PyTorch Multimodal (theo từng mã)."""
+    src = mdl if (mdl and "multimodal" in mdl) else MODELS
+    if "multimodal" not in src or "lstm_scaler" not in src or "lstm_y_scaler" not in src:
         return None
     import torch
-    model = MODELS["multimodal"]
-    scaler = MODELS["lstm_scaler"]
-    y_scaler = MODELS["lstm_y_scaler"]
-    cfg = MODELS["multimodal_cfg"]
-    feature_cols = MODELS["feature_cols"]
+    model = src["multimodal"]
+    scaler = src["lstm_scaler"]
+    y_scaler = src["lstm_y_scaler"]
+    cfg = src["multimodal_cfg"]
+    feature_cols = src.get("feature_cols", MODELS.get("feature_cols", []))
     
     if len(df) < cfg["sequence_length"]:
         return None
@@ -152,14 +153,45 @@ MODELS = load_all_models()
 
 @st.cache_data
 def load_stock_data(ticker: str):
-    data_path = APP_DIR.parent / "01_Data" / "processed_data.csv"
+    """Load du lieu theo tung ma: uu tien processed_{TICKER}.csv, fallback processed_data.csv."""
+    per_ticker = APP_DIR.parent / "01_Data" / f"processed_{ticker}.csv"
+    data_path = per_ticker if per_ticker.exists() else APP_DIR.parent / "01_Data" / "processed_data.csv"
     if not data_path.exists():
         return None
     df = pd.read_csv(data_path, parse_dates=["time"])
     if "ticker" in df.columns:
         df = df[df["ticker"] == ticker].copy()
+    if "RSI_14" not in df.columns:
+        try:
+            from feature_engineering import FeatureEngineer
+            df = FeatureEngineer(window_size=30).add_indicators(df)
+        except Exception:
+            pass
     df = df.sort_values("time").set_index("time")
+    df = df[~df.index.duplicated(keep="last")]
     return df
+
+
+@st.cache_resource
+def load_ticker_deep(ticker: str):
+    """Load model Multimodal theo tung ma (03_Models/top5/), FPT dung model goc."""
+    try:
+        if ticker == "FPT":
+            if "multimodal" in MODELS:
+                return {k: MODELS.get(k) for k in ("multimodal", "lstm_scaler", "lstm_y_scaler", "multimodal_cfg", "feature_cols")}
+            return None
+        T5 = MODELS_DIR / "top5"
+        need = [T5 / f"{ticker}_model.pt", T5 / f"{ticker}_ts_scaler.pkl", T5 / f"{ticker}_y_scaler.pkl"]
+        if not all(p.exists() for p in need):
+            return None
+        import torch
+        model = MultimodalStockModel(n_features=19, sequence_length=30, nlp_dim=3, hidden_lstm=32, hidden_dense=24)
+        model.load_state_dict(torch.load(need[0], map_location="cpu"))
+        model.eval()
+        return {"multimodal": model, "lstm_scaler": joblib.load(need[1]), "lstm_y_scaler": joblib.load(need[2]),
+                "multimodal_cfg": {"sequence_length": 30}, "feature_cols": MODELS.get("feature_cols", [])}
+    except Exception:
+        return None
 
 
 
@@ -170,13 +202,17 @@ st.sidebar.markdown("---")
 
 ticker = st.sidebar.selectbox("🎯 Chọn mã cổ phiếu", ['FPT', 'HPG', 'MBB', 'MWG', 'VNM'])
 model_type = st.sidebar.selectbox(
-    "🧠 Chọn Mô Hình Trí Tuệ Nhân Tạo",
+    "🧠 Mô hình Dự báo (KPI & biểu đồ Tab 1)",
     [
         "Học sâu: LSTM Multimodal (Dự báo giá liên tục)",
         "Học máy: Random Forest (Phân loại xu hướng)",
         "Học máy: SVM (Phân loại xu hướng)"
-    ]
+    ],
+    help="Chọn mô hình dùng cho thẻ KPI và đường dự báo ở Tab 1. KHÔNG ảnh hưởng Tab Backtest — "
+         "nơi có 'Nguồn tín hiệu vào lệnh' riêng để kiểm định chiến lược giao dịch."
 )
+if ticker != "FPT" and "Học sâu" not in model_type:
+    st.sidebar.caption("⚠️ RF/SVM chỉ train trên FPT — với mã khác hãy chọn Học sâu. (Tab Backtest dùng nguồn tín hiệu riêng, độc lập lựa chọn này.)")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🛡️ Quản Trị Rủi Ro Mặc Định")
@@ -233,14 +269,17 @@ with k1:
 
 with k2:
     if "Học sâu" in model_type:
-        lstm_preds = predict_price_lstm(df, n_days=5)
+        lstm_preds = predict_price_lstm(df, n_days=5, mdl=load_ticker_deep(ticker))
         if lstm_preds is not None and len(lstm_preds) > 0:
             predicted_price = float(lstm_preds[0])
             pred_change = predicted_price - latest_close
             pred_pct = (pred_change / latest_close) * 100
             st.metric(label="Dự báo T+1 (Multimodal LSTM)",
                       value=f"{predicted_price:,.0f}",
-                      delta=f"{pred_change:,.0f} ({pred_pct:.2f}%)")
+                      delta=f"{pred_change:,.0f} ({pred_pct:.2f}%)",
+                      help="Giá đóng cửa dự báo cho phiên kế tiếp bằng model Multimodal LSTM-Attention; "
+                           "từ đó hệ thống đệ quy dự báo tiếp 5 phiên (đường đỏ nét đứt trên biểu đồ Tab 1). "
+                           "Chỉ mang tính tham khảo, không phải khuyến nghị đầu tư.")
         else:
             st.metric(label="Dự báo T+1 (Multimodal LSTM)",
                       value="Chưa có model",
@@ -275,11 +314,15 @@ with k2:
 
 with k3:
     rsi_state = "Quá Mua ⚠️" if rsi_val > 70 else ("Quá Bán 🔻" if rsi_val < 30 else "Bình Thường")
-    st.metric(label="Chỉ Số RSI (14)", value=f"{rsi_val:.1f}", delta=rsi_state, delta_color="off")
+    st.metric(label="Chỉ Số RSI (14)", value=f"{rsi_val:.1f}", delta=rsi_state, delta_color="off",
+              help="Relative Strength Index (14 phiên) — chỉ báo động lượng giá: >70 vùng quá mua "
+                   "(cảnh báo điều chỉnh), <30 vùng quá bán (cảnh báo hồi phục), giữa 30–70 là trung tính.")
 
 with k4:
     sent_desc = "Tích Cực 🟢" if sent_val > 0.1 else ("Tiêu Cực 🔴" if sent_val < -0.1 else "Trung Lập ⚪")
-    st.metric(label="Tâm Lý Tin Tức (NLP)", value=f"{sent_val:+.2f}", delta=sent_desc, delta_color="off")
+    st.metric(label="Tâm Lý Tin Tức (NLP)", value=f"{sent_val:+.2f}", delta=sent_desc, delta_color="off",
+              help="Điểm cảm xúc tin tức trong khoảng [-1, +1] do module NLP tính từ tiêu đề tin: "
+                   ">0 tích cực, <0 tiêu cực. Đây là đầu vào thứ 2 (bên cạnh chuỗi giá) của model Multimodal.")
 
 st.markdown("---")
 
@@ -287,6 +330,8 @@ tab1, tab2, tab3 = st.tabs(["📊 Dự Báo & Biểu Đồ", "📰 Phân Tích C
 
 with tab1:
     st.subheader("📈 Biểu đồ Biến động Giá & Đường Dự Báo")
+    src_note = "model gốc (03_Models/multimodal_model.pt)" if ticker == "FPT" else f"model riêng theo mã (03_Models/top5/{ticker}_model.pt)"
+    st.caption(f"📅 Dữ liệu thật: {df.index[0]:%d/%m/%Y} → {df.index[-1]:%d/%m/%Y} · {len(df):,} phiên giao dịch · Nguồn model: {src_note}")
     df_plot = df.tail(60).copy()
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=df_plot.index, y=df_plot['close'], mode='lines+markers', name='Giá Thực Tế', line=dict(color='#2980b9', width=2)))
@@ -294,7 +339,7 @@ with tab1:
     if "Học sâu" in model_type:
         last_date = df_plot.index[-1]
         future_dates = pd.date_range(start=last_date + timedelta(days=1), periods=5)
-        lstm_preds = predict_price_lstm(df, n_days=5)
+        lstm_preds = predict_price_lstm(df, n_days=5, mdl=load_ticker_deep(ticker))
         if lstm_preds is not None and len(lstm_preds) == 5:
             pred_dates = [last_date] + list(future_dates)
             pred_prices = [latest_close] + [float(p) for p in lstm_preds]
@@ -304,6 +349,46 @@ with tab1:
 
     fig.update_layout(height=500, margin=dict(l=20, r=20, t=30, b=20), xaxis_title='Thời gian', yaxis_title='Giá (VND)', legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), hovermode='x unified')
     st.plotly_chart(fig, use_container_width=True)
+
+    with st.expander("🏆 Chất lượng Mô hình — Độ chính xác Dự báo (DA / RMSE / MAPE)"):
+        st.markdown("**FPT — model gốc** (kiến trúc Multimodal, test 20% cuối):")
+        met_path = MODELS_DIR / "metrics.json"
+        if met_path.exists():
+            with open(met_path, encoding="utf-8") as f:
+                met = json.load(f)
+            mdl = met.get("multimodal_deep_learning", {})
+            rf_acc = met.get("classification", {}).get("random_forest", {}).get("accuracy")
+            svm_acc = met.get("classification", {}).get("svm", {}).get("accuracy")
+            row_fpt = pd.DataFrame([{
+                "DA (%)": round(mdl.get("direction_accuracy", 0) * 100, 2),
+                "RMSE": round(mdl.get("rmse", 0)),
+                "MAE": round(mdl.get("mae", 0)),
+                "MAPE (%)": mdl.get("mape"),
+                "RF baseline acc (%)": round(rf_acc * 100, 2) if rf_acc else None,
+                "SVM baseline acc (%)": round(svm_acc * 100, 2) if svm_acc else None,
+            }])
+            st.dataframe(row_fpt, use_container_width=True, hide_index=True)
+        else:
+            st.info("Chưa có metrics.json.")
+        st.markdown("**4 mã còn lại — model top5 (thí nghiệm tin thật vs neutral, cùng kiến trúc + seed 42):**")
+        t5_path = MODELS_DIR / "top5_results_v3.json"
+        if t5_path.exists():
+            with open(t5_path, encoding="utf-8") as f:
+                t5 = json.load(f)
+            rows_t5 = pd.DataFrame([{
+                "Mã": r["ticker"],
+                "DA tin thật (%)": round(r["da_news"] * 100, 2),
+                "DA neutral (%)": round(r["da_neutral"] * 100, 2),
+                "Δ DA (điểm %)": r["delta_pp"],
+                "RMSE": r.get("rmse_news"),
+                "Số phiên test": r.get("n_test"),
+                "Ngày có tin phủ": r.get("sent_days_cov"),
+            } for r in t5])
+            st.dataframe(rows_t5, use_container_width=True, hide_index=True)
+            st.caption("DA = Direction Accuracy (tỷ lệ phiên dự báo đúng chiều). Δ DA trong biên nhiễu do tin RSS chỉ phủ 3–16 ngày/mã "
+                       "→ khai báo trung thực: cần news archive sâu hơn (hướng phát triển của đồ án).")
+        else:
+            st.info("Chưa có top5_results_v3.json.")
 
     with st.expander("👁️‍🗨️ Xem chi tiết dữ liệu gốc (Bảng)"):
         st.dataframe(df.sort_index(ascending=False).head(20), use_container_width=True)
@@ -331,89 +416,164 @@ with tab2:
         elif latest_sent < -0.15: st.error("📉 THỊ TRƯỜNG ĐANG BI QUAN (BEARISH)")
         else: st.warning("⚖️ THỊ TRƯỜNG ĐANG LƯỠNG LỰ (NEUTRAL)")
 
+    # --- Bảng tin tức đã thu thập thật (Google News RSS + Lexicon) ---
+    st.markdown("---")
+    st.markdown("### 🗞️ Tin tức Đã Thu Thập (Google News RSS + Lexicon 38 cụm)")
+    news_path = APP_DIR.parent / "01_Data" / f"news_{ticker}.csv"
+    if news_path.exists():
+        news_raw = pd.read_csv(news_path)
+        news_top = news_raw.sort_values("date", ascending=False).head(30)
+        show_news = pd.DataFrame({
+            "Ngày": pd.to_datetime(news_top["date"]).dt.strftime("%d/%m/%Y"),
+            "Điểm": news_top["score"].map(lambda v: "🟢 +1" if int(v) > 0 else ("🔴 -1" if int(v) < 0 else "⚪ 0")),
+            "Tiêu đề": news_top["title"],
+        })
+        st.dataframe(show_news, use_container_width=True, hide_index=True, height=420)
+        st.caption(f"📊 Tổng cộng {len(news_raw):,} tin đã crawl cho {ticker} — điểm cảm xúc chấm tự động bằng "
+                   f"Lexicon tiếng Việt 38 cụm (§2.3.1). Tin này là nguồn sentiment đầu vào thứ 2 của model Multimodal.")
+    else:
+        st.info(f"ℹ️ Chưa có file tin tức cho {ticker} (01_Data/news_{ticker}.csv) — hiện có sẵn cho HPG/MBB/MWG/VNM.")
+
 
 with tab3:
     st.subheader("💰 Giả Lập Giao Dịch & Quản Trị Rủi Ro (Backtest)")
-    st.markdown("Cấu hình kịch bản mô phỏng giao dịch thực tế trên rổ dữ liệu lịch sử bằng động cơ **BacktestEngine** để kiểm định hiệu năng sinh lời thực tế.")
+    st.markdown("Chọn **nguồn tín hiệu** → bấm **▶ Chạy Backtest**. Chiến lược Multimodal chạy trên **tập kiểm thử** (20% cuối) bằng tín hiệu dự báo thật đúng ngưỡng §3.5.1 — đồ thị giá đánh dấu từng lệnh MUA▲/BÁN▼ (kèm SL/TP) để soi backtest có ổn không. *Lưu ý: nguồn tín hiệu backtest ở Tab 3 độc lập với mô hình hiển thị dự báo ở Tab 1 — mỗi tab một mục đích.*")
 
     col_b1, col_b2 = st.columns([1, 2])
     with col_b1:
         st.markdown("#### ⚙️ Tham số Giao dịch")
-        init_cap = st.number_input("Vốn khởi tạo (VND)", min_value=10_000_000.0, max_value=1_000_000_000.0, value=100_000_000.0, step=10_000_000.0)
-        comm = st.slider("Phí giao dịch (%)", 0.0, 1.0, 0.15, step=0.05) / 100.0
-        tax = st.slider("Thuế chứng khoán (%)", 0.0, 1.0, 0.10, step=0.05) / 100.0
-        sl = st.slider("Cắt lỗ cứng (Stop-loss %)", -20.0, -1.0, -7.0, step=1.0) / 100.0
-        tp = st.slider("Chốt lời mục tiêu (Take-profit %)", 5.0, 50.0, 14.0, step=1.0) / 100.0
-        pos_size = st.slider("Phân bổ vị thế (Position Size %)", 5.0, 100.0, 20.0, step=5.0) / 100.0
+        strat_options = ["🤖 Multimodal LSTM-Attention — mô hình chính (§3.5.1)"]
+        if ticker == "FPT":
+            strat_options.append("🌲 Random Forest — baseline đối chiếu (§4.3.1)")
+        strat = st.selectbox("Nguồn tín hiệu vào lệnh", strat_options,
+                             help="AI nào phát tín hiệu MUA/BÁN trong giả lập. Lý do học thuật của 2 lựa chọn: "
+                                  "mở expander '🎯 Vì sao có lựa chọn nguồn tín hiệu?' ngay bên dưới.")
+        is_rf_bt = "Random Forest" in strat
+        use_sent_bt = st.toggle(
+            "🔒 Đồng thuận sentiment khi MUA (§3.5.1)", value=True,
+            help="Bật: chỉ vào lệnh khi điểm sentiment > 0 (đúng thiết kế §3.5.1). Tắt: chỉ dùng ngưỡng dự báo ±1%/ngày.",
+        )
+        with st.expander("🎯 Vì sao có lựa chọn nguồn tín hiệu? (đáp phản biện)"):
+            st.markdown(
+                "Đồ án so sánh **2 họ mô hình** trên cùng bài toán dự báo, nên kiểm định chiến lược cần 2 nguồn tín hiệu tương ứng:\n\n"
+                "- **🤖 Multimodal LSTM-Attention (đề xuất chính — §3.5.1):** tín hiệu MUA/BÁN từ dự báo lợi nhuận vượt ngưỡng ±1%/ngày, kèm đồng thuận sentiment.\n"
+                "- **🌲 Random Forest (baseline ML truyền thống — §4.3.1):** tín hiệu từ nhãn Tăng/Giảm/Đi ngang — chỉ train trên FPT nên chỉ mở với mã FPT.\n\n"
+                "Nguồn tín hiệu này **độc lập với ô 'Mô hình Dự báo' ở sidebar** — mỗi vai trò một mục đích: sidebar điều khiển hiển thị dự báo (KPI + biểu đồ Tab 1), còn nguồn tín hiệu ở đây quyết định AI phát lệnh khi **kiểm định chiến lược giao dịch** (Tab 3). Đây là phép đối chiếu baseline vs đề xuất theo phương pháp luận đồ án."
+            )
+        init_cap = st.number_input("Vốn khởi tạo (VND)", min_value=10_000_000, max_value=1_000_000_000, value=100_000_000, step=10_000_000, format="%d",
+                                   help="Số vốn giả lập ban đầu (VND). Mọi chỉ số ROI, MaxDD, Equity curve đều tính trên vốn này — không phải tiền thật.")
+        comm = st.slider("Phí giao dịch (%)", 0.0, 1.0, 0.15, step=0.05, help="Phí môi giới chứng khoán tính trên mỗi lệnh MUA và BÁN (HOSE phổ biến 0,15%). Giao dịch càng nhiều, tổng phí càng ăn mòn lợi nhuận.") / 100.0
+        tax = st.slider("Thuế chứng khoán (%)", 0.0, 1.0, 0.10, step=0.05, help="Thuế chuyển nhượng chứng khoán 0,1% theo quy định Việt Nam — chỉ tính khi BÁN cổ phiếu.") / 100.0
+        sl = st.slider("Cắt lỗ cứng (Stop-loss %)", -20.0, -1.0, -7.0, step=1.0, help="Nếu lệnh đang giữ lỗ chạm ngưỡng này (ví dụ -7%), hệ thống BÁN bắt buộc để giới hạn thua lỗ — nguyên tắc quản trị rủi ro số 1 của đồ án (§4.4.1).") / 100.0
+        tp = st.slider("Chốt lời mục tiêu (Take-profit %)", 5.0, 50.0, 14.0, step=1.0, help="Nếu lệnh lãi đạt ngưỡng này (ví dụ +14%), hệ thống BÁN để hiện thực hóa lợi nhuận trước khi giá quay đầu.") / 100.0
+        pos_size = st.slider("Phân bổ vị thế (Position Size %)", 5.0, 100.0, 20.0, step=5.0, help="Tỷ trọng vốn dành cho MỖI lệnh so với tổng tài sản. 20% nghĩa là tối đa chia vốn 5 phần — tránh 'bỏ hết trứng vào một giỏ'.") / 100.0
+        run_btn = st.button("▶ Chạy Backtest", type="primary", use_container_width=True)
 
     with col_b2:
         st.markdown("#### 🏆 Kết quả Kiểm thử (Backtest Summary)")
-        
-        feature_cols = MODELS.get("feature_cols", [])
-        signals = np.zeros(len(df))
-        
-        if "scaler" in MODELS and feature_cols:
-            if "Random Forest" in model_type and "rf" in MODELS:
-                X = df[feature_cols].values
-                X_s = MODELS["scaler"].transform(X)
-                signals = MODELS["rf"].predict(X_s)
-            elif "SVM" in model_type and "svm" in MODELS:
-                X = df[feature_cols].values
-                X_s = MODELS["scaler"].transform(X)
-                signals = MODELS["svm"].predict(X_s)
-            elif "Học sâu" in model_type and "multimodal" in MODELS:
-                from feature_engineering import FeatureEngineer
-                cfg = MODELS["multimodal_cfg"]
-                fe_temp = FeatureEngineer(window_size=cfg["sequence_length"])
-                X_ts_win, _, _ = fe_temp.create_sliding_windows(df, feature_cols)
-                if len(X_ts_win) > 0:
-                    import torch
-                    model = MODELS["multimodal"]
-                    scaler = MODELS["lstm_scaler"]
-                    X_ts_s = scaler.transform(X_ts_win.reshape(-1, X_ts_win.shape[-1])).reshape(X_ts_win.shape)
-                    
-                    nlp_feats = []
-                    for s in df["sentiment_score"].values[cfg["sequence_length"]-1: -1]:
-                        if s > 0.1: nlp_feats.append([0.7, 0.1, 0.2])
-                        elif s < -0.1: nlp_feats.append([0.1, 0.7, 0.2])
-                        else: nlp_feats.append([0.2, 0.2, 0.6])
-                    if len(nlp_feats) < len(X_ts_win):
-                        nlp_feats = np.pad(nlp_feats, ((0, len(X_ts_win) - len(nlp_feats)), (0, 0)), mode='edge')
-                        
-                    t_ts = torch.tensor(X_ts_s, dtype=torch.float32)
-                    t_nlp = torch.tensor(nlp_feats, dtype=torch.float32)
-                    with torch.no_grad():
-                        _, trend_logits, _ = model(t_ts, t_nlp)
-                        pred_cls = torch.argmax(trend_logits, dim=1).numpy()
-                    inv_map = {0: -1, 1: 0, 2: 1}
-                    pred_cls_orig = np.array([inv_map[v] for v in pred_cls])
-                    signals[cfg["sequence_length"]:] = pred_cls_orig
+        if run_btn:
+            if is_rf_bt:
+                if ticker != "FPT":
+                    st.warning("⚠️ Random Forest chỉ được train trên FPT — hãy chọn chiến lược Multimodal.")
+                elif "scaler" in MODELS and "rf" in MODELS and MODELS.get("feature_cols"):
+                    X_bt = df[MODELS["feature_cols"]].values
+                    sig = MODELS["rf"].predict(MODELS["scaler"].transform(X_bt))
+                    be = BacktestEngine(initial_capital=init_cap, commission=comm, tax=tax,
+                                        stop_loss_pct=sl, take_profit_pct=tp, position_size_pct=pos_size)
+                    res = be.run(df, sig)
+                    st.session_state["bt"] = {"kind": "rf", "ticker": ticker,
+                        "res": {"roi": res["cumulative_return_pct"], "bh": res["buy_and_hold_return_pct"],
+                                "sharpe": res["sharpe_ratio"], "maxdd": res["max_drawdown_pct"],
+                                "win": res["win_rate_pct"], "n": res["total_trades"]},
+                        "eq": res["equity_curve"], "bhq": res["buy_and_hold_curve"], "trades": []}
+                else:
+                    st.warning("Chưa có model RF trong 03_Models/.")
+            else:
+                preds_path = MODELS_DIR / "top5" / f"{ticker}_predictions.csv"
+                if preds_path.exists():
+                    pdf = pd.read_csv(preds_path)
+                    from backtest_threshold import run_threshold_backtest
+                    r = run_threshold_backtest(pdf, init_capital=init_cap, commission=comm, tax=tax,
+                                               stop_loss=sl, take_profit=tp, pos_size=pos_size,
+                                               use_sentiment=use_sent_bt)
+                    st.session_state["bt"] = {"kind": "mm", "ticker": ticker,
+                        "res": {"roi": r["roi_pct"], "bh": r["bh_pct"], "sharpe": r["sharpe"],
+                                "maxdd": r["maxdd_pct"], "win": r["win_rate"], "n": r["n_trades"]},
+                        "eq": r["equity"], "bhq": r["bh"], "dd": r["dd"],
+                        "close": pd.Series(r["close"], index=r["times"]), "trades": r["trades"]}
+                else:
+                    st.info(f"ℹ️ Chưa có file dự báo cho {ticker} (03_Models/top5/{ticker}_predictions.csv).")
 
-        be = BacktestEngine(
-            initial_capital=init_cap,
-            commission=comm,
-            tax=tax,
-            stop_loss_pct=sl,
-            take_profit_pct=tp,
-            position_size_pct=pos_size
-        )
-        res = be.run(df, signals)
-        
-        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-        col_m1.metric("Lợi nhuận AI (ROI %)", f"{res['cumulative_return_pct']}%")
-        col_m2.metric("Lợi nhuận Buy & Hold", f"{res['buy_and_hold_return_pct']}%")
-        col_m3.metric("Tỷ lệ Sharpe", f"{res['sharpe_ratio']}")
-        col_m4.metric("Sụt giảm tối đa (MaxDD %)", f"{res['max_drawdown_pct']}%")
+        bt = st.session_state.get("bt")
+        if not bt:
+            st.info("👆 Cấu hình tham số bên trái rồi bấm **▶ Chạy Backtest**.")
+        elif bt.get("ticker") != ticker:
+            st.info(f"Đang hiển thị kết quả của mã {bt.get('ticker')} — bấm ▶ để chạy lại cho {ticker}.")
+        else:
+            m = bt["res"]
+            ma, mb, mc = st.columns(3)
+            md, me, mf = st.columns(3)
+            ma.metric("ROI AI", f"{float(m['roi']):+,.2f}%",
+                      help="Return on Investment — tổng lợi nhuận/lỗ tích lũy của tài khoản AI trên vốn ban đầu, "
+                           "đã trừ phí môi giới + thuế + trượt giá. So sánh trực tiếp với Buy & Hold để đánh giá "
+                           "chiến lược AI có đáng dùng hay không.")
+            mb.metric("Buy & Hold", f"{float(m['bh']):+,.2f}%",
+                      help="Chiến lược đối chiếu thụ động: mua ngay phiên đầu kỳ và giữ nguyên đến cuối, không giao dịch. "
+                           "Đây là 'chuẩn mực' — chiến lược AI chỉ có giá trị khi ROI AI vượt qua Buy & Hold.")
+            mc.metric("Sharpe", f"{float(m['sharpe']):,.2f}",
+                      help="Sharpe Ratio — lợi nhuận vượt lãi suất phi rủi ro trên mỗi đơn vị biến động lợi nhuận "
+                           "(quy đổi theo năm, √252). Thang tham khảo: <1 kém · 1–2 tốt · >2 rất tốt.")
+            md.metric("Max Drawdown", f"{float(m['maxdd']):,.2f}%",
+                      help="Mức sụt vốn tối đa từ đỉnh xuống đáy trong kỳ kiểm thử (peak-to-trough). "
+                           "Đo rủi ro tột cùng mà nhà đầu tư phải chịu — càng gần 0 càng an toàn.")
+            me.metric("Win Rate", f"{float(m['win']):,.2f}%",
+                      help="Tỷ lệ số lệnh có lãi (PnL > 0) trên tổng số lệnh đã đóng. Win rate cao chưa chắc tổng tài sản "
+                           "tăng nếu lỗ nặng lãi nhẹ — cần xem kèm ROI và Max Drawdown.")
+            mf.metric("Số lệnh", f"{int(m['n'])}",
+                      help="Tổng số vòng giao dịch MUA→BÁN hoàn chỉnh trong kỳ. Giao dịch càng nhiều, "
+                           "phí + thuế càng ăn mòn lợi nhuận (xem tham số Phí giao dịch).")
+            if bt["kind"] == "mm":
+                fig_bt = make_subplots(rows=3, cols=1, shared_xaxes=True, row_heights=[0.5, 0.3, 0.2],
+                                       vertical_spacing=0.04,
+                                       subplot_titles=("Giá & điểm vào/ra lệnh (tập kiểm thử)", "Vốn AI vs Buy & Hold", "Drawdown (%)"))
+                fig_bt.add_trace(go.Scatter(x=bt["close"].index, y=bt["close"], mode="lines", name="Giá đóng cửa", line=dict(color="#2980b9", width=1.8)), row=1, col=1)
+                tr_df = pd.DataFrame(bt["trades"]) if bt["trades"] else pd.DataFrame()
+                if len(tr_df):
+                    fig_bt.add_trace(go.Scatter(x=tr_df["ngay_mua"], y=tr_df["gia_mua"], mode="markers", name="MUA ▲",
+                                                marker=dict(symbol="triangle-up", size=12, color="#2ecc71"),
+                                                hovertext=[f"MUA {d} @ {p:,.0f}" for d, p in zip(tr_df["ngay_mua"], tr_df["gia_mua"])]), row=1, col=1)
+                    fig_bt.add_trace(go.Scatter(x=tr_df["ngay_ban"], y=tr_df["gia_ban"], mode="markers", name="BÁN ▼",
+                                                marker=dict(symbol="triangle-down", size=12, color="#e74c3c"),
+                                                hovertext=[f"{rr} | {d} @ {p:,.0f} ({g:+.2f}%)" for rr, d, p, g in zip(tr_df["ly_do"], tr_df["ngay_ban"], tr_df["gia_ban"], tr_df["pnl_pct"])]), row=1, col=1)
+                fig_bt.add_trace(go.Scatter(x=bt["eq"].index, y=bt["eq"], mode="lines", name="Vốn AI", line=dict(color="#2ecc71", width=2.4)), row=2, col=1)
+                fig_bt.add_trace(go.Scatter(x=bt["bhq"].index, y=bt["bhq"], mode="lines", name="Buy & Hold", line=dict(color="#7f8c8d", width=1.5, dash="dot")), row=2, col=1)
+                fig_bt.add_trace(go.Scatter(x=bt["dd"].index, y=bt["dd"], mode="lines", name="Drawdown", line=dict(color="#e67e22", width=1.5), fill="tozeroy"), row=3, col=1)
+                fig_bt.update_layout(height=780, margin=dict(l=20, r=20, t=40, b=20),
+                                     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+                fig_bt.update_yaxes(tickformat=",.0f", row=1, col=1)
+                fig_bt.update_yaxes(tickformat=",.0f", row=2, col=1)
+                fig_bt.update_yaxes(tickformat=",.1f", ticksuffix="%", row=3, col=1)
+                st.plotly_chart(fig_bt, use_container_width=True)
+                if len(tr_df):
+                    st.markdown("##### 📒 Trade Log — từng lệnh (ngày/giá/lý do/PnL)")
+                    show = pd.DataFrame({
+                        "Ngày mua": pd.to_datetime(tr_df["ngay_mua"]).dt.strftime("%d/%m/%Y"),
+                        "Giá mua": tr_df["gia_mua"].map(lambda v: f"{v:,.0f}"),
+                        "Ngày bán": pd.to_datetime(tr_df["ngay_ban"]).dt.strftime("%d/%m/%Y"),
+                        "Giá bán": tr_df["gia_ban"].map(lambda v: f"{v:,.0f}"),
+                        "Lý do thoát": tr_df["ly_do"],
+                        "PnL (%)": tr_df["pnl_pct"].map(lambda v: f"{v:+.2f}%"),
+                    })
+                    st.dataframe(show, use_container_width=True, hide_index=True)
+            else:
+                st.caption("ℹ️ Baseline RF (§4.3.1) chạy toàn kỳ bằng BacktestEngine — không có trade log & markers từng lệnh như chiến lược Multimodal (§3.5.1).")
+                fig_eq = go.Figure()
+                fig_eq.add_trace(go.Scatter(x=bt["eq"].index, y=bt["eq"], mode="lines", name="Vốn AI (RF)", line=dict(color="#2ecc71", width=2.5)))
+                fig_eq.add_trace(go.Scatter(x=bt["bhq"].index, y=bt["bhq"], mode="lines", name="Buy & Hold", line=dict(color="#7f8c8d", width=1.5, dash="dot")))
+                fig_eq.update_layout(height=460, title="So sánh Tăng trưởng Vốn (Equity Curve)", margin=dict(l=20, r=20, t=40, b=20), xaxis_title="Thời gian", yaxis_title="Giá trị tài sản (VND)", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+                fig_eq.update_yaxes(tickformat=",.0f")
+                st.plotly_chart(fig_eq, use_container_width=True)
 
-        fig_eq = go.Figure()
-        fig_eq.add_trace(go.Scatter(x=res['equity_curve'].index, y=res['equity_curve'], mode='lines', name='Vốn AI (Multimodal AI Portfolio)', line=dict(color='#2ecc71', width=2.5)))
-        fig_eq.add_trace(go.Scatter(x=res['buy_and_hold_curve'].index, y=res['buy_and_hold_curve'], mode='lines', name='Vốn Buy & Hold (Mua & Giữ)', line=dict(color='#7f8c8d', width=1.5, dash='dot')))
-        fig_eq.update_layout(
-            title="So sánh Tăng trưởng Vốn (Equity Curve)",
-            height=400,
-            margin=dict(l=20, r=20, t=40, b=20),
-            xaxis_title="Thời gian",
-            yaxis_title="Giá trị tài sản (VND)",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-        )
-        st.plotly_chart(fig_eq, use_container_width=True)
+st.markdown("---")
+st.caption("🎓 Đồ án Tổng hợp — Dự báo giá Top 5 cổ phiếu VN30 bằng Multimodal AI (LSTM-Attention + NLP Sentiment). "
+           "Toàn bộ số liệu giao dịch là giả lập phục vụ mục đích học thuật — không phải khuyến nghị đầu tư.")

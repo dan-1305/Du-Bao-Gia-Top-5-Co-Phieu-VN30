@@ -1,0 +1,16 @@
+{
+  "ticker": "MBB",
+  "n_windows": 1370,
+  "n_test": 274,
+  "sent_days_cov": 5,
+  "da_v2_news": 0.4249,
+  "da_v1_neutral": 0.4029,
+  "delta_pp": 2.2,
+  "rmse": 3727,
+  "epochs": 20,
+  "window": 30,
+  "range": [
+    "2021-02-26",
+    "2026-07-09"
+  ]
+}

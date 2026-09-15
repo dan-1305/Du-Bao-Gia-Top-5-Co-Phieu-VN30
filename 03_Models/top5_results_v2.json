@@ -1,0 +1,74 @@
+[
+  {
+    "ticker": "HPG",
+    "n_windows": 1370,
+    "n_test": 274,
+    "sent_days_cov": 4,
+    "da_v2_news": 0.4542,
+    "da_v1_neutral": 0.4176,
+    "delta_pp": 3.66,
+    "rmse": 944,
+    "epochs": 20,
+    "window": 30,
+    "range": [
+      "2021-02-26",
+      "2026-07-09"
+    ]
+  },
+  {
+    "ticker": "MBB",
+    "n_windows": 1370,
+    "n_test": 274,
+    "sent_days_cov": 5,
+    "da_v2_news": 0.4249,
+    "da_v1_neutral": 0.4029,
+    "delta_pp": 2.2,
+    "rmse": 3727,
+    "epochs": 20,
+    "window": 30,
+    "range": [
+      "2021-02-26",
+      "2026-07-09"
+    ]
+  },
+  {
+    "ticker": "MWG",
+    "n_windows": 1370,
+    "n_test": 274,
+    "sent_days_cov": 0,
+    "da_v2_news": 0.4029,
+    "da_v1_neutral": 0.4432,
+    "delta_pp": -4.03,
+    "rmse": 11964,
+    "epochs": 20,
+    "window": 30,
+    "range": [
+      "2021-02-26",
+      "2026-07-09"
+    ]
+  },
+  {
+    "ticker": "VNM",
+    "n_windows": 1370,
+    "n_test": 274,
+    "sent_days_cov": 5,
+    "da_v2_news": 0.3663,
+    "da_v1_neutral": 0.3663,
+    "delta_pp": 0.0,
+    "rmse": 2594,
+    "epochs": 20,
+    "window": 30,
+    "range": [
+      "2021-02-26",
+      "2026-07-09"
+    ]
+  },
+  {
+    "ticker": "FPT",
+    "da_v2_news": 0.5426,
+    "da_v1_neutral": 0.5426,
+    "delta_pp": 0.0,
+    "n_test": 259,
+    "note": "FPT = golden artifact (kho tin day du tu truoc)"
+  }
+]

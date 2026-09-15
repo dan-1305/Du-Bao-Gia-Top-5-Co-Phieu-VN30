@@ -1,0 +1,16 @@
+{
+  "ticker": "MWG",
+  "n_windows": 1370,
+  "n_test": 274,
+  "sent_days_cov": 0,
+  "da_v2_news": 0.4029,
+  "da_v1_neutral": 0.4432,
+  "delta_pp": -4.03,
+  "rmse": 11964,
+  "epochs": 20,
+  "window": 30,
+  "range": [
+    "2021-02-26",
+    "2026-07-09"
+  ]
+}
