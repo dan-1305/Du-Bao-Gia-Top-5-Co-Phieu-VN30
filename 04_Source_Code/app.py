@@ -200,7 +200,7 @@ st.sidebar.title("💎 VN30 AI ROBO-ADVISOR")
 st.sidebar.markdown("**Đồ án:** Dự báo giá Top 5 cổ phiếu VN30 bằng Multimodal AI (LSTM-Attention + NLP Sentiment).")
 st.sidebar.markdown("---")
 
-ticker = st.sidebar.selectbox("🎯 Chọn mã cổ phiếu", ['FPT', 'HPG', 'MBB', 'MWG', 'VNM'])
+ticker = st.sidebar.selectbox("🎯 Chọn mã cổ phiếu", ['HPG', 'FPT', 'MBB', 'MWG', 'VNM'])
 model_type = st.sidebar.selectbox(
     "🧠 Mô hình Dự báo (KPI & biểu đồ Tab 1)",
     [
@@ -398,8 +398,21 @@ with tab2:
     st.markdown("Hệ thống tự động phân loại các tiêu đề tin tức thành 3 nhóm cảm xúc bằng mô hình **PhoBERT/FinBERT** hoặc **Từ điển Cảm xúc tiếng Việt chuyên biệt**.")
     col_s1, col_s2 = st.columns([2, 1])
     with col_s1:
-        st.markdown("### 🔍 Phân tích Tin tức Độc lập")
-        user_news = st.text_input("Nhập tiêu đề hoặc bài viết tài chính cần phân tích:", "FPT báo lãi ròng quý 2 tăng trưởng kỷ lục 35% nhờ mảng xuất khẩu phần mềm bùng nổ")
+        st.markdown("### 🧪 Thử nghiệm Mô hình AI (Playground)")
+        st.caption("💡 **Mục đích:** Công cụ này cho phép bạn tự gõ hoặc chọn các đoạn văn bản tùy ý để kiểm tra độ nhạy của bộ máy NLP. Công cụ hoạt động **độc lập**, không lấy từ báo chí thật và không liên quan đến dữ liệu lịch sử cổ phiếu bên phải.")
+        
+        sample_options = {
+            "Tự nhập văn bản...": "",
+            "🟢 Mẫu Tích cực (Bullish)": "Lợi nhuận ròng quý 3 tăng trưởng đột biến 50%, doanh nghiệp ký kết thành công hợp đồng tỷ đô với đối tác chiến lược tại Mỹ.",
+            "⚪ Mẫu Trung lập (Neutral)": "Công ty thông báo sẽ tổ chức đại hội cổ đông thường niên vào tháng 4 tới để báo cáo về tình hình hoạt động hiện tại.",
+            "🔴 Mẫu Tiêu cực (Bearish)": "Nợ xấu ngân hàng gia tăng mạnh mẽ, hàng loạt dự án bất động sản trọng điểm bị đình chỉ thi công do vướng mắc pháp lý và thiếu vốn."
+        }
+        
+        choice = st.selectbox("Chọn mẫu văn bản (hoặc tự nhập):", list(sample_options.keys()))
+        default_text = sample_options[choice]
+        
+        user_news = st.text_area("Nhập tiêu đề hoặc bài viết tài chính cần phân tích:", value=default_text, height=120)
+        
         if st.button("Phân tích Sắc thái"):
             nlp = NLPProcessor()
             res = nlp.analyze_single(user_news)
@@ -409,12 +422,19 @@ with tab2:
             prob_df = pd.DataFrame({"Cảm xúc": ["Tích cực (Bullish)", "Tiêu cực (Bearish)", "Trung lập (Neutral)"], "Xác suất (%)": [probs[0]*100, probs[1]*100, probs[2]*100]})
             st.bar_chart(prob_df.set_index("Cảm xúc"))
     with col_s2:
-        st.markdown("### 📌 Đồng hồ Cảm xúc Hiện tại")
+        st.markdown(f"### 📌 Cảm xúc Mã {ticker} (Phiên cuối)")
         latest_sent = float(df["sentiment_score"].iloc[-1]) if "sentiment_score" in df.columns else 0.0
-        st.metric(label="Điểm Cảm xúc Toàn thị trường (Phiên cuối)", value=f"{latest_sent:+.2f}")
-        if latest_sent > 0.15: st.success("🔥 THỊ TRƯỜNG ĐANG HƯNG PHẤN (BULLISH)")
-        elif latest_sent < -0.15: st.error("📉 THỊ TRƯỜNG ĐANG BI QUAN (BEARISH)")
-        else: st.warning("⚖️ THỊ TRƯỜNG ĐANG LƯỠNG LỰ (NEUTRAL)")
+        
+        st.caption(f"Đây là điểm cảm xúc tổng hợp từ tin tức của riêng mã **{ticker}** trong phiên giao dịch gần nhất (được nạp từ lịch sử dữ liệu), KHÔNG phải kết quả của ô phân tích thử nghiệm bên trái.")
+        
+        if latest_sent == 0.0:
+            st.metric(label=f"Điểm Cảm xúc {ticker}", value="0.00")
+            st.info("📭 KHÔNG CÓ TIN TỨC. Hệ thống ghi nhận 0.0 (Trung lập) cho phiên này do không thu thập được tin tức liên quan hoặc nằm ngoài độ phủ của bộ từ điển chuyên ngành.")
+        else:
+            st.metric(label=f"Điểm Cảm xúc {ticker}", value=f"{latest_sent:+.2f}")
+            if latest_sent > 0.15: st.success("🔥 ĐANG HƯNG PHẤN (BULLISH)")
+            elif latest_sent < -0.15: st.error("📉 ĐANG BI QUAN (BEARISH)")
+            else: st.warning("⚖️ ĐANG LƯỠNG LỰ (NEUTRAL)")
 
     # --- Bảng tin tức đã thu thập thật (Google News RSS + Lexicon) ---
     st.markdown("---")
